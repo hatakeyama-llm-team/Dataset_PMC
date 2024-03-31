@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 # TODO: 精度向上のため、ロードするモデルの変更を検討する
 # TODO: 軽量化のため、不要なパイプラインコンポーネントの非活性化を検討する
-nlp = spacy.load("en_core_sci_lg", disable=[])
+nlp = spacy.load("en_core_sci_lg-0.5.4/en_core_sci_lg/en_core_sci_lg-0.5.4", disable=[])
 nlp.add_pipe("sentencizer")
 
 def is_complete_sentence(sentence):
