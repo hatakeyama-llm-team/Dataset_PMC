@@ -53,7 +53,7 @@ poetry run python src/pipeline.py first100 csv
 ## Pipeline
 1. input/**/*.XMLをロード
 1. XMLから `abstract` セクションと `body` のテキストを抽出
-1. SciSpacyを用いて文単位に分割
+1. ScispaCyを用いて文単位に分割
 1. ルールに従って不完全な文のフィルタリング
 1. `未実装` 重複する文のフィルタリング
 

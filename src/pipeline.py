@@ -29,7 +29,7 @@ def main(scope, output_format):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process files in the given scope with optional output format.")
-    parser.add_argument("scope", type=str, choices=['all', 'first100', 'last100'], help="Execution scope: all, first100, or last100.")
+    parser.add_argument("scope", type=str, choices=['all', 'first10', 'last10'], help="Execution scope: all, first100, or last100.")
     parser.add_argument("output_format", type=str, choices=['csv', 'parquet'], help="Output format: csv or parquet.")
     args = parser.parse_args()
     main(args.scope, args.output_format)
