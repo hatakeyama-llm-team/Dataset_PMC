@@ -21,6 +21,7 @@ def process_batch_record(params):
     """
     まずinputする
     """
+    import pandas as pd
     from sentence_analysis import process_files_in_parallel, analyze_text_sentences
     from utils import download_blob, upload_blob
     # params
