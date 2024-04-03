@@ -17,4 +17,3 @@ RUN tar -zxvf /app/en_core_sci_lg-0.5.4.tar.gz
 COPY --from=apache/beam_python3.9_sdk:2.43.0 /opt/apache/beam /opt/apache/beam
 
 ENTRYPOINT ["/opt/apache/beam/boot"]
-
