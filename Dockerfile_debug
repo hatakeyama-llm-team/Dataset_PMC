@@ -5,6 +5,7 @@ FROM python:3.9.15
 WORKDIR /app
 COPY requirements.txt /app
 COPY src/ /app
+COPY sec/ /app/sec/
 RUN pip install -r requirements.txt
 RUN pip install  google-cloud-aiplatform
 RUN pip install  "apache-beam[gcp]==2.43.0"
@@ -16,5 +17,3 @@ RUN tar -zxvf /app/en_core_sci_lg-0.5.4.tar.gz
 COPY --from=apache/beam_python3.9_sdk:2.43.0 /opt/apache/beam /opt/apache/beam
 
 CMD ["free", "-m", "-s4"]
-
-
