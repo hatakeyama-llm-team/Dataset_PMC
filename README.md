@@ -36,7 +36,7 @@ cf. https://github.com/nmslib/nmslib/issues/476
 poetry run python src/pipeline.py {first_arg} {second_arg}
 
 # 例
-poetry run python src/pipeline.py first100 csv
+poetry run python src/pipeline.py first10 csv
 ```
 
 | first_arg | 説明                                             |
