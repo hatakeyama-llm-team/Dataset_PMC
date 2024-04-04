@@ -40,6 +40,7 @@ pip-wheel-metadata
 
 poetry/core/*
 
-output/*
+
 en_core_sci_*
 sec/*
+tmp/*
