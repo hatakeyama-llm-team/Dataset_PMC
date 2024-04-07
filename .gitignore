@@ -40,6 +40,7 @@ pip-wheel-metadata
 
 poetry/core/*
 
-input/*
-output/csv/*
-output/parquet/*
+
+en_core_sci_*
+sec/*
+tmp/*
