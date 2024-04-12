@@ -1,12 +1,47 @@
 import xml.etree.ElementTree as ET
 
-def extract_abstract_and_body_text(file_path):
+def extract_abstract_and_body_text(xml_string):
     try:
-        tree = ET.parse(file_path)
-        root = tree.getroot()
-        abstract_text = "".join(root.find('.//front/article-meta/abstract').itertext()) if root.find('.//front/article-meta/abstract') is not None else ""
-        body_text = "".join(root.find('.//body').itertext()) if root.find('.//body') is not None else ""
+        root = ET.fromstring(xml_string)
+        abstract_section = root.find('.//front/article-meta/abstract')
+        body_section = root.find('.//body')
+        abstract_text = xml_to_markdown(ET.tostring(abstract_section, encoding='unicode')) if abstract_section is not None else ""
+        body_text = xml_to_markdown(ET.tostring(body_section, encoding='unicode')) if body_section is not None else ""
         return abstract_text, body_text
-    except Exception as e:
-        print(f"Error processing file {file_path}: {e}")
+    except ET.ParseError as e:
+        print(f"Failed to parse XML: {e}")
         return "", ""
+
+def safe_text(text):
+    return text if text is not None else ""
+
+def xml_to_markdown(xml_string):
+    def process_element(element, parent_tag=None):
+        md = ""
+        if element.tag == 'sec':
+            title_element = element.find('title')
+            if title_element is not None:
+                md += "## " + safe_text(title_element.text) + "\n\n"
+            for child in element:
+                if child.tag != 'title':
+                    md += process_element(child, parent_tag=element.tag)
+        elif element.tag == 'title' and parent_tag != 'sec':
+            md += "### " + safe_text(element.text) + "\n\n"
+        elif element.tag == 'p':
+            md += ''.join(element.itertext()).strip() + "\n\n"
+        elif element.tag == 'bold':
+            md += "**" + safe_text(element.text) + "**"
+        elif element.tag == 'italic':
+            md += "*" + safe_text(element.text) + "*"
+        elif element.tag == 'xref':
+            pass
+        elif element.tag == 'fig':
+            pass
+        return md
+
+    root = ET.fromstring(xml_string)
+    markdown = ""
+    for child in root:
+        markdown += process_element(child)
+
+    return markdown.strip()

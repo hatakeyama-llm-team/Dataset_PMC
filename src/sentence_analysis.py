@@ -1,16 +1,20 @@
-import spacy
 from text_extraction import extract_abstract_and_body_text
 
-# TODO: 精度向上のため、ロードするモデルの変更を検討する
-# TODO: 軽量化のため、不要なパイプラインコンポーネントの非活性化を検討する
-nlp = spacy.load("en_core_sci_lg-0.5.4/en_core_sci_lg/en_core_sci_lg-0.5.4", disable=[])
-nlp.add_pipe("sentencizer")
+def analyze_text_sentences(xml_string):
+    abstract_text, body_text = extract_abstract_and_body_text(xml_string)
 
-def count_text_sentences(text):
-    doc = nlp(text)
-    return len(list(doc.sents))
+    # Replace None with empty strings if necessary
+    abstract_text = "" if abstract_text is None else abstract_text
+    body_text = "" if body_text is None else body_text
 
-def analyze_text_sentences(file_path):
-    abstract_text, body_text = extract_abstract_and_body_text(file_path)
-    combined_text = f"{abstract_text}\n\n{body_text}"
+    # Construct the combined text based on content availability
+    if abstract_text and body_text:
+        combined_text = f"# Abstract\n{abstract_text}\n\n# Body\n{body_text}"
+    elif abstract_text:
+        combined_text = f"# Abstract\n{abstract_text}"
+    elif body_text:
+        combined_text = f"# Body\n{body_text}"
+    else:
+        combined_text = ""
+    
     return combined_text
