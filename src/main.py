@@ -3,9 +3,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import os
 from google.cloud import storage
-import apache_beam as beam
 from data_analysis import analyze_and_upload
-from pipeline_setup import setup_pipeline_args, configure_pipeline_options
+from pipeline_setup import setup_pipeline_args
 import pandas as pd
 from tqdm import tqdm
 

@@ -3,17 +3,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
 from blob_operations import download_blob_as_string, upload_blob
-import traceback
-from xml.etree import ElementTree
-
-def analyze_text_from_xml_string(xml_string):
-    root = ElementTree.fromstring(xml_string)
-    text = ""
-    for elem in root.iter():
-        if elem.text:
-            text += elem.text + "\n"
-    
-    return text
+from sentence_analysis import analyze_text_sentences
 
 def analyze_and_upload(batch_name, bucket_name, valid_files, pbar):
     tmp_root = "./tmp"
@@ -25,15 +15,20 @@ def analyze_and_upload(batch_name, bucket_name, valid_files, pbar):
         try:
             blob_path = f"xml_files/{batch_name}/{file_name}"
             xml_string = download_blob_as_string(bucket_name, blob_path)
-            text = analyze_text_from_xml_string(xml_string)
+            text = analyze_text_sentences(xml_string)
+            if not text:
+                continue
+            
+            # DEBUG: tmpディレクトリにテキストファイルを保存
+            # with open(f"./tmp/{str(file_name).replace('.xml', '.txt')}", "w") as text_file:
+            #     text_file.write(text)
 
             df = pd.DataFrame([text], columns=["Text"])
             table = pa.Table.from_pandas(df)
             table_list.append(table)
 
         except Exception as e:
-            # エラーメッセージの最初の行のみを抽出して記録
-            error_msg = str(e).split('\n')[0]
+            error_msg = str(e)
             full_msg = f"Error processing {blob_path}: {error_msg}\n"
             with open(error_log_path, "a") as error_log:
                 error_log.write(full_msg)

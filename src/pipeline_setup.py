@@ -1,5 +1,4 @@
 import argparse
-import os
 from apache_beam.options.pipeline_options import PipelineOptions, GoogleCloudOptions, WorkerOptions
 
 def setup_pipeline_args(argv=None):

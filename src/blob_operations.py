@@ -40,12 +40,3 @@ def upload_blob(bucket_name, source_file_name, destination_blob_name):
             unit_divisor=1024) as pbar:
         blob.upload_from_file(file_obj)
         pbar.update(blob_size)
-
-def append_to_skipped_files(file_name):
-    skipped_file_path = os.path.join(os.path.dirname(__file__), '..', 'target', 'skipped.csv')
-    os.makedirs(os.path.dirname(skipped_file_path), exist_ok=True)
-    
-    with open(skipped_file_path, 'a') as csvfile:
-        if os.stat(skipped_file_path).st_size == 0:
-            csvfile.write("file_name\n")
-        csvfile.write(f"{file_name}\n")
