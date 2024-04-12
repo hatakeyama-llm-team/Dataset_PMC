@@ -6,8 +6,13 @@ devcontainerを使用しているため、VSCodeでの開発を推奨します�
 ## Usage
 
 ```sh
+# パイプラインの実行
+poetry run python src/main.py
+```
+
+```sh
+# オプション
 poetry run python src/main.py --location [location] --batch_name [batch_name] --gcp_project_id [gcp_project_id] --credidental_path [credidental_path]
-# 引数はDefault値が設定されています。
 ```
 
 ## Dataset
