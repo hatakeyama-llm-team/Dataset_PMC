@@ -1,24 +1,49 @@
 import os
 import pandas as pd
-from blob_operations import append_to_skipped_files, download_blob, upload_blob
-from sentence_analysis import analyze_text_sentences  # Ensure this module is correctly referenced
+import pyarrow.parquet as pq
+import pyarrow as pa
+from blob_operations import download_blob_as_string, upload_blob
+import traceback
+from xml.etree import ElementTree
 
-def download_blob_to_tmp(blob_path, bucket_name):
+def analyze_text_from_xml_string(xml_string):
+    root = ElementTree.fromstring(xml_string)
+    text = ""
+    for elem in root.iter():
+        if elem.text:
+            text += elem.text + "\n"
+    
+    return text
+
+def analyze_and_upload(batch_name, bucket_name, valid_files, pbar):
     tmp_root = "./tmp"
-    file_name = os.path.basename(blob_path)
-    tmp_path = os.path.join(tmp_root, file_name)
-    download_blob(bucket_name, blob_path, tmp_path)
-    return tmp_path
+    os.makedirs(tmp_root, exist_ok=True) 
+    table_list = []
+    error_log_path = os.path.join(tmp_root, "errors.log")
 
-def analyze_and_upload(input_gs_path, output_gs_path, bucket_name, valid_files):
-    file_name_only = os.path.basename(input_gs_path)
+    for file_name in valid_files:
+        try:
+            blob_path = f"xml_files/{batch_name}/{file_name}"
+            xml_string = download_blob_as_string(bucket_name, blob_path)
+            text = analyze_text_from_xml_string(xml_string)
 
-    if file_name_only not in valid_files:
-        append_to_skipped_files(file_name_only)
-        return
-    tmp_path = download_blob_to_tmp(input_gs_path, bucket_name)
-    sentences = analyze_text_sentences(tmp_path)
-    sentences_data = pd.DataFrame([sentences])
-    tmp_output_path = tmp_path.replace("xml", "parquet")
-    sentences_data.to_parquet(tmp_output_path)
-    upload_blob(bucket_name, tmp_output_path, output_gs_path)
+            df = pd.DataFrame([text], columns=["Text"])
+            table = pa.Table.from_pandas(df)
+            table_list.append(table)
+
+        except Exception as e:
+            # エラーメッセージの最初の行のみを抽出して記録
+            error_msg = str(e).split('\n')[0]
+            full_msg = f"Error processing {blob_path}: {error_msg}\n"
+            with open(error_log_path, "a") as error_log:
+                error_log.write(full_msg)
+            continue  # 処理を続行
+        finally:
+            pbar.update(1)  # プログレスバーを更新
+
+    if table_list:
+        combined_table = pa.concat_tables(table_list)
+        tmp_output_path = os.path.join(tmp_root, f"{batch_name}.parquet")
+        pq.write_table(combined_table, tmp_output_path)
+        
+        upload_blob(bucket_name, tmp_output_path, f"parquet_files/{batch_name}/{batch_name}.parquet")

@@ -7,6 +7,7 @@ import apache_beam as beam
 from data_analysis import analyze_and_upload
 from pipeline_setup import setup_pipeline_args, configure_pipeline_options
 import pandas as pd
+from tqdm import tqdm
 
 def read_valid_files(batch_name):
     csv_path = os.path.join(os.path.dirname(__file__), '..', 'target', f'{batch_name}_oa_files.csv')
@@ -27,16 +28,17 @@ def generate_params_dict_list(batch_name, valid_files):
 
 def main(argv=None):
     known_args, pipeline_args = setup_pipeline_args(argv)
-    options = configure_pipeline_options(known_args, pipeline_args)
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = known_args.credidental_path
-    valid_files = read_valid_files(known_args.batch_name)
 
-    params_dict_list = generate_params_dict_list(known_args.batch_name, valid_files)
-    
-    with beam.Pipeline(options=options) as pipeline:
-        (pipeline
-         | 'Create file list' >> beam.Create(params_dict_list)
-         | 'Process records' >> beam.Map(lambda params: analyze_and_upload(**params, valid_files=valid_files)))
+    batch_names = [known_args.batch_name] if known_args.batch_name else ["PMC0{:02d}xxxxxx".format(i) for i in range(11)]
+
+    for batch_name in batch_names:
+        valid_files = read_valid_files(batch_name)
+        
+        with tqdm(total=len(valid_files), desc=f"Processing batch: {batch_name}") as pbar:
+            analyze_and_upload(batch_name, "geniac-pmc", valid_files, pbar)
+
+        tqdm.write(f"Completed batch: {batch_name} with {len(valid_files)} files processed")
 
 if __name__ == "__main__":
     main()
