@@ -3,7 +3,6 @@ import logging
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from google.cloud import storage
 import apache_beam as beam
 from pipeline_setup import cli_args, configure_pipeline_options
 from text_extraction import generate_record
@@ -34,24 +33,38 @@ def process_xml_file(element):
         logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
         return None
 
-def run_batch(pipeline_options, bucket_name, batch_name, credidental_path):
+def run_batch(pipeline_options, bucket_name,  batch_name):
     with beam.Pipeline(options=pipeline_options) as p:
         csv_path = f"target/{batch_name}.csv"
-        df = pd.read_csv(csv_path)
-        xml_filenames = df['file_name'].tolist()
         
-        xml_files = [(f"gs://{bucket_name}/{file_name}", os.path.join('/temp', batch_name)) for file_name in xml_filenames]
+        # Read CSV file using ReadFromText
+        csv_lines = (
+            p | '📄 Read CSV File' >> beam.io.ReadFromText(csv_path)
+        )
 
-        if not xml_files:
+        # Parse CSV lines
+        parsed_lines = (
+            csv_lines
+            | '🔧 Parse CSV Lines' >> beam.Map(lambda line: line.split(','))
+        )
+
+        # Extract XML filenames from the first column
+        xml_filenames = (
+            parsed_lines
+            | '🧬 Extract XML Filenames' >> beam.Map(lambda fields: fields[0])
+            | '🔍 Filter Empty Filenames' >> beam.Filter(lambda x: x)
+        )
+
+        if not xml_filenames:
             logging.error("No XML files found for processing.")
             return
 
         records = (
-            p | 'Create File List' >> beam.Create(xml_files)
-            | 'Process XML Files' >> beam.Map(process_xml_file)
-            | 'Filter valid records' >> beam.Filter(lambda x: x is not None)
+            xml_filenames
+            | '✨ Process XML Files' >> beam.Map(process_xml_file)
+            | '⛩️ Filter valid records' >> beam.Filter(lambda x: x is not None)
         )
-
+        
         def get_output_path(record):
             filepath = record['filepath']
             file_name = os.path.basename(filepath).replace('.xml', '.parquet')
@@ -71,7 +84,7 @@ def run_batch(pipeline_options, bucket_name, batch_name, credidental_path):
 
         (
             records
-            | 'Map record to output path' >> beam.Map(write_to_parquet)
+            | '🚰 Map record to output path' >> beam.Map(write_to_parquet)
         )
 
 def main():
@@ -81,7 +94,8 @@ def main():
         logging.info(f"🔥 Starting processing for {batch_name}")
         try:
             pipeline_options = configure_pipeline_options(known_args, pipeline_args, batch_name)
-            run_batch(pipeline_options, "geniac-pmc", batch_name, known_args.credidental_path)
+            bucket_name = "geniac-pmc"
+            run_batch(pipeline_options, bucket_name, batch_name)
         except Exception as e:
             logging.error(f"Failed to process batch {batch_name}: {e}", exc_info=True)
 

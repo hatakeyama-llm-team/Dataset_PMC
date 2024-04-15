@@ -1,6 +1,7 @@
 import argparse
 import os
 from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions, GoogleCloudOptions, WorkerOptions
+import secrets
 
 def cli_args(argv=None):
     parser = argparse.ArgumentParser()
@@ -20,7 +21,7 @@ def configure_pipeline_options(known_args, pipeline_args, batch_name):
     google_cloud_options = options.view_as(GoogleCloudOptions)
     google_cloud_options.region = known_args.location
     google_cloud_options.project = known_args.gcp_project_id
-    google_cloud_options.job_name = f"genaic-dataflow-pmc-iwata-{batch_name.lower()}-{known_args.location}"
+    google_cloud_options.job_name = f"genaic-dataflow-pmc-iwata-{secrets.token_hex(3)}-{batch_name.lower()}-{known_args.location}"
     google_cloud_options.staging_location = f"gs://geniac-pmc/binaries"
     google_cloud_options.temp_location = f"gs://geniac-pmc/temp"
     options.view_as(WorkerOptions).autoscaling_algorithm = "THROUGHPUT_BASED"
