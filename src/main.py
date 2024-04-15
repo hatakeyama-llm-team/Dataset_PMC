@@ -1,12 +1,12 @@
 import os
 import logging
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from google.cloud import storage
 import apache_beam as beam
 from pipeline_setup import cli_args, configure_pipeline_options
 from text_extraction import generate_record
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 # Loggerの設定
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +22,7 @@ def process_xml_file(element):
             return None
 
         record = generate_record(xml_string)
+        print(f"😂 {record}")
         if record == "":
             logging.warning(f"No content extracted from XML: {filepath}")
             return None
@@ -35,20 +36,12 @@ def process_xml_file(element):
 
 def run_batch(pipeline_options, bucket_name, batch_name, credidental_path):
     with beam.Pipeline(options=pipeline_options) as p:
-        xml_files_prefix = f"xml_files/{batch_name}/"
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credidental_path
-        output_parquet_prefix = f"parquet_files/{batch_name}/"
+        csv_path = f"target/{batch_name}.csv"
+        df = pd.read_csv(csv_path)
+        xml_filenames = df['file_name'].tolist()
+        
+        xml_files = [(f"gs://{bucket_name}/{file_name}", os.path.join('/temp', batch_name)) for file_name in xml_filenames]
 
-        def generate_file_list(bucket_name, prefix):
-            storage_client = storage.Client()
-            try:
-                blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
-                return [(f"gs://{bucket_name}/{blob.name}", os.path.join('/temp', batch_name)) for blob in blobs if blob.name.endswith('.xml')]
-            except Exception as e:
-                logging.error(f"Failed to list blobs in bucket {bucket_name} with prefix {prefix}: {e}", exc_info=True)
-                return []
-
-        xml_files = generate_file_list(bucket_name, xml_files_prefix)
         if not xml_files:
             logging.error("No XML files found for processing.")
             return
@@ -62,19 +55,15 @@ def run_batch(pipeline_options, bucket_name, batch_name, credidental_path):
         def get_output_path(record):
             filepath = record['filepath']
             file_name = os.path.basename(filepath).replace('.xml', '.parquet')
-            return f"gs://{bucket_name}/{output_parquet_prefix}{file_name}"
+            return f"gs://{bucket_name}/parquet_files/{batch_name}/{file_name}"
 
-        # BUG: `gs://geniac-pmc/parquet_files/` に出力されない
         def write_to_parquet(record):
             output_path = get_output_path(record)
             logging.info(f"Attempting to write record to Parquet at {output_path}")
             
             try:
                 df = pd.DataFrame([record['content']], columns=['content'])
-                logging.info("DataFrame creation successful.")
-
                 table = pa.Table.from_pandas(df, schema=pa.schema([pa.field('content', pa.string())]))
-                logging.info("Arrow Table creation successful.")
                 pq.write_table(table, output_path)
                 logging.info(f"Successfully written to Parquet: {output_path}")
             except Exception as e:
@@ -89,7 +78,7 @@ def main():
     known_args, pipeline_args = cli_args()
     for batch in range(known_args.start_batch, known_args.end_batch + 1):
         batch_name = f"PMC{str(batch).zfill(3)}xxxxxx"
-        print(f"🔥 Starting processing for {batch_name}")
+        logging.info(f"🔥 Starting processing for {batch_name}")
         try:
             pipeline_options = configure_pipeline_options(known_args, pipeline_args, batch_name)
             run_batch(pipeline_options, "geniac-pmc", batch_name, known_args.credidental_path)
