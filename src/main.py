@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 # Loggerの設定
-logging.basicConfig(level=logging.INFO, format='%(asctime)s, %(levelname)s:%(message)s')
+logging.basicConfig(level=logging.INFO)
 
 def process_xml_file(element):
     filepath, _ = element
@@ -64,11 +64,17 @@ def run_batch(pipeline_options, bucket_name, batch_name, credidental_path):
             file_name = os.path.basename(filepath).replace('.xml', '.parquet')
             return f"gs://{bucket_name}/{output_parquet_prefix}{file_name}"
 
+        # BUG: `gs://geniac-pmc/parquet_files/` に出力されない
         def write_to_parquet(record):
             output_path = get_output_path(record)
+            logging.info(f"Attempting to write record to Parquet at {output_path}")
+            
             try:
                 df = pd.DataFrame([record['content']], columns=['content'])
+                logging.info("DataFrame creation successful.")
+
                 table = pa.Table.from_pandas(df, schema=pa.schema([pa.field('content', pa.string())]))
+                logging.info("Arrow Table creation successful.")
                 pq.write_table(table, output_path)
                 logging.info(f"Successfully written to Parquet: {output_path}")
             except Exception as e:
