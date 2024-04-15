@@ -1,5 +1,22 @@
 import xml.etree.ElementTree as ET
 
+def generate_record(xml_string):
+    abstract_text, body_text = extract_abstract_and_body_text(xml_string)
+    
+    abstract_text = "" if abstract_text is None else abstract_text
+    body_text = "" if body_text is None else body_text
+    
+    if abstract_text and body_text:
+        combined_text = f"# Abstract\n{abstract_text}\n\n# Body\n{body_text}"
+    elif abstract_text:
+        combined_text = f"# Abstract\n{abstract_text}"
+    elif body_text:
+        combined_text = f"# Body\n{body_text}"
+    else:
+        combined_text = ""
+    
+    return combined_text
+
 def extract_abstract_and_body_text(xml_string):
     try:
         root = ET.fromstring(xml_string)

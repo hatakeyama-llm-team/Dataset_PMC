@@ -1,43 +1,94 @@
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
 import os
+import logging
 from google.cloud import storage
-from data_analysis import analyze_and_upload
-from pipeline_setup import setup_pipeline_args
+import apache_beam as beam
+from pipeline_setup import cli_args, configure_pipeline_options
+from text_extraction import generate_record
 import pandas as pd
-from tqdm import tqdm
+import pyarrow as pa
+import pyarrow.parquet as pq
 
-def read_valid_files(batch_name):
-    csv_path = os.path.join(os.path.dirname(__file__), '..', 'target', f'{batch_name}_oa_files.csv')
-    df = pd.read_csv(csv_path)
-    return set(df['file_name'].apply(lambda x: x.split('/')[-1]))
+# Loggerの設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s, %(levelname)s:%(message)s')
 
-def generate_params_dict_list(batch_name, valid_files):
-    bucket_name = "geniac-pmc"
-    storage_client = storage.Client()
-    blobs = list(storage_client.list_blobs(bucket_name, prefix=f"xml_files/{batch_name}/"))
-    prefix_length = len(f"xml_files/{batch_name}/")
+def process_xml_file(element):
+    filepath, _ = element
+    try:
+        with open(filepath, 'r', encoding='utf-8') as file:
+            xml_string = file.read()
 
-    return [{
-        "bucket_name": bucket_name,
-        "input_gs_path": blob.name,
-        "output_gs_path": f"parquet_files/{batch_name}/{os.path.basename(blob.name).replace('.xml', '.parquet')}"
-    } for blob in blobs if blob.name[prefix_length:] in valid_files]
+        if not xml_string:
+            logging.warning(f"File is empty: {filepath}")
+            return None
 
-def main(argv=None):
-    known_args, pipeline_args = setup_pipeline_args(argv)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = known_args.credidental_path
+        record = generate_record(xml_string)
+        if record == "":
+            logging.warning(f"No content extracted from XML: {filepath}")
+            return None
+        return {'content': record, 'filepath': filepath}
+    except FileNotFoundError:
+        logging.error(f"File not found: {filepath}")
+        return None
+    except Exception as e:
+        logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
+        return None
 
-    batch_names = [known_args.batch_name] if known_args.batch_name else ["PMC0{:02d}xxxxxx".format(i) for i in range(11)]
+def run_batch(pipeline_options, bucket_name, batch_name, credidental_path):
+    with beam.Pipeline(options=pipeline_options) as p:
+        xml_files_prefix = f"xml_files/{batch_name}/"
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credidental_path
+        output_parquet_prefix = f"parquet_files/{batch_name}/"
 
-    for batch_name in batch_names:
-        valid_files = read_valid_files(batch_name)
-        
-        with tqdm(total=len(valid_files), desc=f"Processing batch: {batch_name}") as pbar:
-            analyze_and_upload(batch_name, "geniac-pmc", valid_files, pbar)
+        def generate_file_list(bucket_name, prefix):
+            storage_client = storage.Client()
+            try:
+                blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+                return [(f"gs://{bucket_name}/{blob.name}", os.path.join('/temp', batch_name)) for blob in blobs if blob.name.endswith('.xml')]
+            except Exception as e:
+                logging.error(f"Failed to list blobs in bucket {bucket_name} with prefix {prefix}: {e}", exc_info=True)
+                return []
 
-        tqdm.write(f"Completed batch: {batch_name} with {len(valid_files)} files processed")
+        xml_files = generate_file_list(bucket_name, xml_files_prefix)
+        if not xml_files:
+            logging.error("No XML files found for processing.")
+            return
+
+        records = (
+            p | 'Create File List' >> beam.Create(xml_files)
+            | 'Process XML Files' >> beam.Map(process_xml_file)
+            | 'Filter valid records' >> beam.Filter(lambda x: x is not None)
+        )
+
+        def get_output_path(record):
+            filepath = record['filepath']
+            file_name = os.path.basename(filepath).replace('.xml', '.parquet')
+            return f"gs://{bucket_name}/{output_parquet_prefix}{file_name}"
+
+        def write_to_parquet(record):
+            output_path = get_output_path(record)
+            try:
+                df = pd.DataFrame([record['content']], columns=['content'])
+                table = pa.Table.from_pandas(df, schema=pa.schema([pa.field('content', pa.string())]))
+                pq.write_table(table, output_path)
+                logging.info(f"Successfully written to Parquet: {output_path}")
+            except Exception as e:
+                logging.error(f"Failed to write record to Parquet: {output_path}: {e}", exc_info=True)
+
+        (
+            records
+            | 'Map record to output path' >> beam.Map(write_to_parquet)
+        )
+
+def main():
+    known_args, pipeline_args = cli_args()
+    for batch in range(known_args.start_batch, known_args.end_batch + 1):
+        batch_name = f"PMC{str(batch).zfill(3)}xxxxxx"
+        print(f"🔥 Starting processing for {batch_name}")
+        try:
+            pipeline_options = configure_pipeline_options(known_args, pipeline_args, batch_name)
+            run_batch(pipeline_options, "geniac-pmc", batch_name, known_args.credidental_path)
+        except Exception as e:
+            logging.error(f"Failed to process batch {batch_name}: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()

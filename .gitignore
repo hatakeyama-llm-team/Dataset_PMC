@@ -44,3 +44,4 @@ poetry/core/*
 en_core_sci_*
 sec/*
 tmp/*
+output/*
