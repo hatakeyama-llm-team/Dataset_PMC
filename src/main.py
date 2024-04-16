@@ -13,20 +13,30 @@ from google.cloud import storage
 logging.basicConfig(level=logging.DEBUG)
 
 
-def combine_json_files(batch_name):
+def combine_json_files(batch_name, total_files):
     json_dir = f"jsonl_files/{batch_name}/"
     output_path = f"jsonl_files/{batch_name}.jsonl"
-    print(f"🔮 Combining JSONL files...")
 
     try:
         with open(output_path, "w") as outfile:
-            for filename in os.listdir(json_dir):
-                if filename.endswith(".json"):
-                    filepath = os.path.join(json_dir, filename)
-                    with open(filepath, "r") as infile:
-                        data = json.load(infile)
-                        text = data["text"]
-                        outfile.write(json.dumps({"text": text}) + "\n")
+            json_files = [
+                filename
+                for filename in os.listdir(json_dir)
+                if filename.endswith(".json")
+            ]
+            total_json_files = len(json_files)
+
+            for i, filename in enumerate(json_files, start=1):
+                filepath = os.path.join(json_dir, filename)
+                with open(filepath, "r") as infile:
+                    data = json.load(infile)
+                    text = data["text"]
+                    outfile.write(json.dumps({"text": text}) + "\n")
+
+                progress_message = f"🔮 Combining JSONL files: {i}/{total_json_files}"
+                print(f"\r{progress_message}", end="", flush=True)
+
+        print()  # 改行を追加
         print(f"🍻 Successfully combined JSONL files into: {output_path}")
 
         # JSONLファイルの作成が完了したら、jsonl_files/{batch_name}直下のJSONファイルを全て削除
@@ -133,7 +143,7 @@ async def run_batch_async(batch_name):
 
         print()  # 改行を追加
 
-        combine_json_files(batch_name)
+        combine_json_files(batch_name, total_files)
 
     except FileNotFoundError:
         logging.error(f"CSV file not found: {csv_path}")
