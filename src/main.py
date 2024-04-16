@@ -4,6 +4,7 @@ import os
 import logging
 import tarfile
 import pandas as pd
+import time
 from pipeline_setup import cli_args
 from text_extraction import generate_record
 from google.cloud import storage
@@ -141,7 +142,11 @@ async def run_batch_async(batch_name):
 
 
 def run_batch(batch_name):
+    start_time = time.time()
     asyncio.run(run_batch_async(batch_name))
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"🕒 Batch {batch_name} completed in {execution_time:.2f} seconds")
 
 
 def main():

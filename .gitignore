@@ -45,3 +45,4 @@ tmp/*
 storage/*
 jsonl_files/*
 xml_files/*
+*.tar.gz
