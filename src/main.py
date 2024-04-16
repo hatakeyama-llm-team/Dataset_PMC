@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 def combine_json_files(batch_name):
     json_dir = f"jsonl_files/{batch_name}/"
     output_path = f"jsonl_files/{batch_name}.jsonl"
+    print(f"🔮 Combining JSONL files...")
 
     try:
         with open(output_path, "w") as outfile:
@@ -115,7 +116,7 @@ async def run_batch_async(batch_name):
     csv_path = f"target/{batch_name}.csv"
 
     try:
-        df = pd.read_csv(csv_path, header=None)
+        df = pd.read_csv(csv_path, header=None, skiprows=1)
         xml_filenames = df.iloc[:, 0].dropna().tolist()
         total_files = len(xml_filenames)
         print(f"🌼 Number of valid XML filenames extracted: {total_files}")
