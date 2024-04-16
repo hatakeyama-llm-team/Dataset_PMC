@@ -64,8 +64,7 @@ def run_batch(pipeline_options, bucket_name, batch_name):
 
                 # スキーマを定義
                 schema = pa.schema([
-                    pa.field('content', pa.string()),
-                    pa.field('filepath', pa.string())
+                    pa.field('content', pa.string())
                 ])
 
                 # WriteToParquet変換を適用
