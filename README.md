@@ -13,13 +13,18 @@ docker push gcr.io/geniac-416410/pmc:latest
 ```
 
 ```sh
-# オプション
+# Dataflowでの実行
 poetry run python src/main.py --start_batch 0 --end_batch 10 \
     --machine_type e2-standard-4 \
     --runner DataflowRunner \
     --location us-east1 \
     --sdk_container_image gcr.io/geniac-416410/pmc:latest \
     --experiments use_runner_v2
+```
+
+```sh
+# ローカルでの実行
+poetry run python src/main.py --start_batch 0 --end_batch 10
 ```
 
 ## Dataset

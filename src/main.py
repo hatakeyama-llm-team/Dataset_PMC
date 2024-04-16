@@ -13,20 +13,14 @@ def run_batch(pipeline_options, bucket_name, batch_name):
     with beam.Pipeline(options=pipeline_options) as p:
         import logging
         
-        def process_xml_file(element, bucket_name):
-            if isinstance(element, (list, tuple)) and len(element) == 2:
-                filepath, _ = element
-            else:
-                filepath = element
-            
+        def process_xml_file(filepath, bucket_name):
             xml_files_base = f"gs://{bucket_name}"
-            # xml_files_base = ""
             filepath = os.path.join(xml_files_base, "xml_files", filepath)
             
             logging.debug(f"🌟 Processing file: {filepath}")
             
             try:
-                with FileSystems.open(filepath, 'r') as file:
+                with FileSystems.open(filepath) as file:
                     xml_string = file.read().decode('utf-8')
 
                 if not xml_string:
@@ -71,13 +65,19 @@ def run_batch(pipeline_options, bucket_name, batch_name):
                 _ = (
                     record_pcollection
                     | beam.io.parquetio.WriteToParquet(
-                        file_path_prefix=output_path,
+                        file_path_prefix=f"gs://{bucket_name}/parquet_files/v2/{batch_name}/",
                         schema=schema,
-                        file_name_suffix='.parquet'
+                        file_name_suffix="",
+                        num_shards=1
                     )
                 )
 
-                logging.debug(f"🍀 Successfully written to Parquet: {output_path}")
+                # Parquetファイルの存在を確認
+                if FileSystems.exists(output_path):
+                    logging.debug(f"🍀 Successfully written to Parquet: {output_path}")
+                else:
+                    logging.warning(f"🔥 Parquet file not found after writing: {output_path}")  
+                          
             except Exception as e:
                 logging.error(f"💀 Failed to write record to Parquet: {output_path}: {e}", exc_info=True)
                 
