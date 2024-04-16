@@ -36,11 +36,11 @@ XMLから `<abstract></abstract>` と `<body></body>` のテキストを抽出�
 
 | tag | process |
 | --- | --- |
-| p | text |
-| bold | text |
+| p | ' ' + text |
+| bold | ' ' + text |
 | italic | text |
-| sec | text + \n |
-| title | text + \n |
+| sec | ' ' + text + \n |
+| title | ' ' + text + \n |
 | xref | x |
 | fig | x |
 

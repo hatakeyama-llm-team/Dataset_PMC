@@ -1,142 +1,154 @@
+import asyncio
+import json
 import os
 import logging
-
-import apache_beam as beam
-from apache_beam.io.filesystems import FileSystems
-from pipeline_setup import cli_args, configure_pipeline_options
+import tarfile
+import pandas as pd
+from pipeline_setup import cli_args
 from text_extraction import generate_record
+from google.cloud import storage
 
 # Loggerの設定
 logging.basicConfig(level=logging.DEBUG)
 
-def run_batch(pipeline_options, bucket_name, batch_name):
-    with beam.Pipeline(options=pipeline_options) as p:
-        import logging
-        
-        def process_xml_file(filepath, bucket_name):
-            xml_files_base = f"gs://{bucket_name}"
-            filepath = os.path.join(xml_files_base, "xml_files", filepath)
-            
-            logging.debug(f"🌟 Processing file: {filepath}")
-            
-            try:
-                with FileSystems.open(filepath) as file:
-                    xml_string = file.read().decode('utf-8')
 
-                if not xml_string:
-                    logging.warning(f"File is empty: {filepath}")
-                    return None
+def combine_json_files(batch_name):
+    json_dir = f"jsonl_files/{batch_name}/"
+    output_path = f"jsonl_files/{batch_name}.jsonl"
 
-                record = generate_record(xml_string)
-                if record == "":
-                    logging.warning(f"No content extracted from XML: {filepath}")
-                    return None
-                return {'content': record, 'filepath': filepath}
-            except FileNotFoundError:
-                logging.error(f"File not found: {filepath}")
+    try:
+        with open(output_path, "w") as outfile:
+            for filename in os.listdir(json_dir):
+                if filename.endswith(".json"):
+                    filepath = os.path.join(json_dir, filename)
+                    with open(filepath, "r") as infile:
+                        data = json.load(infile)
+                        text = data["text"]
+                        outfile.write(json.dumps({"text": text}) + "\n")
+        print(f"🍻 Successfully combined JSONL files into: {output_path}")
+
+        # JSONLファイルの作成が完了したら、jsonl_files/{batch_name}直下のJSONファイルを全て削除
+        for filename in os.listdir(json_dir):
+            if filename.endswith(".json"):
+                filepath = os.path.join(json_dir, filename)
+                os.remove(filepath)
+
+        print(f"🗑️  Deleted JSON files in: {json_dir}")
+    except Exception as e:
+        logging.error(
+            f"💀 Failed to combine JSONL files for batch {batch_name}: {e}",
+            exc_info=True,
+        )
+
+
+async def download_and_extract_tar_async(batch_name):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "sec/geniac-416410-5bded920e947.json"
+    bucket_name = "geniac-pmc"
+    tar_filename = f"oa_comm_xml.{batch_name}.baseline.2023-12-18.tar.gz"
+    tar_path = f"original_files/{tar_filename}"
+    destination_path = "xml_files"
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(tar_path)
+
+    try:
+        os.makedirs(destination_path, exist_ok=True)
+        blob.download_to_filename(tar_filename)
+        print(f"📦 Successfully downloaded tar file: {tar_filename}")
+
+        with tarfile.open(tar_filename, "r:gz") as tar:
+            tar.extractall(path=destination_path)
+        print(f"🗃️  Successfully extracted tar file to: {destination_path}")
+
+        os.remove(tar_filename)
+        print(f"🗑️  Deleted tar file: {tar_filename}")
+    except Exception as e:
+        logging.error(f"💀 Failed to download and extract tar file: {e}", exc_info=True)
+
+
+async def run_batch_async(batch_name):
+    await download_and_extract_tar_async(batch_name)
+
+    def process_xml_file(filepath):
+        xml_files_base = "xml_files"
+        filepath = os.path.join(xml_files_base, filepath)
+
+        try:
+            with open(filepath, "r") as file:
+                xml_string = file.read()
+
+            if not xml_string:
+                logging.warning(f"File is empty: {filepath}")
                 return None
-            except Exception as e:
-                logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
+
+            record = generate_record(xml_string)
+            if record == "":
+                logging.warning(f"No content extracted from XML: {filepath}")
                 return None
+            return {"text": record, "filepath": filepath}
+        except FileNotFoundError:
+            logging.error(f"File not found: {filepath}")
+            return None
+        except Exception as e:
+            logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
+            return None
 
-        def get_output_path(record, batch_name, bucket_name):
-            filepath = record['filepath']
-            file_name = os.path.basename(filepath).replace('.xml', '.parquet')
-            logging.debug(f"🌝 file_name: {file_name}")
-            return f"gs://{bucket_name}/parquet_files/v2/{batch_name}/{file_name}"
-        
-        def write_to_parquet(record, batch_name, bucket_name):
-            import apache_beam as beam
-            import pyarrow as pa
+    def write_to_json(record, batch_name, total_files, current_file):
+        filepath = record["filepath"]
+        file_name = os.path.basename(filepath).replace(".xml", ".json")
+        output_path = f"jsonl_files/{batch_name}/{file_name}"
 
-            output_path = get_output_path(record, batch_name, bucket_name)
-            logging.debug(f"🌹 Attempting to write record to Parquet at {output_path}")
+        try:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            df = pd.DataFrame([record])
+            df.to_json(output_path, orient="records", lines=True)
 
-            try:
-                # レコードをPCollectionに変換
-                record_pcollection = beam.Create([record])
+            progress_message = f"🍀 Processing files: {current_file}/{total_files}"
+            print(f"\r{progress_message}", end="", flush=True)
 
-                # スキーマを定義
-                schema = pa.schema([
-                    pa.field('content', pa.string())
-                ])
+        except Exception as e:
+            logging.error(
+                f"💀 Failed to write record to JSON: {output_path}: {e}", exc_info=True
+            )
 
-                # WriteToParquet変換を適用
-                _ = (
-                    record_pcollection
-                    | beam.io.parquetio.WriteToParquet(
-                        file_path_prefix=f"gs://{bucket_name}/parquet_files/v2/{batch_name}/",
-                        schema=schema,
-                        file_name_suffix="",
-                        num_shards=1
-                    )
-                )
+    csv_path = f"target/{batch_name}.csv"
 
-                # Parquetファイルの存在を確認
-                if FileSystems.exists(output_path):
-                    logging.debug(f"🍀 Successfully written to Parquet: {output_path}")
-                else:
-                    logging.warning(f"🔥 Parquet file not found after writing: {output_path}")  
-                          
-            except Exception as e:
-                logging.error(f"💀 Failed to write record to Parquet: {output_path}: {e}", exc_info=True)
-                
-        csv_path = f"target/{batch_name}.csv"
-        
-        # Read CSV file using ReadFromText
-        csv_lines = (
-            p | 'Read CSV File' >> beam.io.ReadFromText(csv_path)
-        )
-        
-        # Log the count of lines read from CSV
-        (csv_lines
-            | 'Count CSV Lines' >> beam.combiners.Count.Globally()
-            | 'Log CSV Line Count' >> beam.Map(lambda count: logging.debug(f"Number of lines read from CSV: {count}")))
-
-        # Parse CSV lines
-        parsed_lines = (
-            csv_lines
-            | 'Parse CSV Lines' >> beam.Map(lambda line: line.split(','))
-        )
-
-        # Extract XML filenames from the first column
-        xml_filenames = (
-            parsed_lines
-            | 'Extract XML Filenames' >> beam.Map(lambda fields: fields[0] if len(fields) > 0 else None)
-            | 'Filter Empty Filenames' >> beam.Filter(lambda x: x is not None)
-        )
-
-        # Log if no valid XML filenames were extracted
-        (xml_filenames
-            | 'Count Valid XML Filenames' >> beam.combiners.Count.Globally()
-            | 'Log Valid XML Filename Count' >> beam.Map(lambda count: logging.debug(f"🌼 Number of valid XML filenames extracted: {count}")))
+    try:
+        df = pd.read_csv(csv_path, header=None)
+        xml_filenames = df.iloc[:, 0].dropna().tolist()
+        total_files = len(xml_filenames)
+        print(f"🌼 Number of valid XML filenames extracted: {total_files}")
 
         if not xml_filenames:
             logging.error("No XML files found for processing.")
             return
 
-        records = (
-            xml_filenames
-            | 'Process XML Files' >> beam.Map(lambda x: process_xml_file(x, bucket_name))
-            | 'Filter valid records' >> beam.Filter(lambda x: x is not None)
-        )
-        
-        (
-            records
-            | 'Write to Parquet' >> beam.Map(lambda record: write_to_parquet(record, batch_name, bucket_name))
-        )
+        for i, filename in enumerate(xml_filenames, start=1):
+            record = process_xml_file(filename)
+            if record is not None:
+                write_to_json(record, batch_name, total_files, i)
+
+        print()  # 改行を追加
+
+        combine_json_files(batch_name)
+
+    except FileNotFoundError:
+        logging.error(f"CSV file not found: {csv_path}")
+    except Exception as e:
+        logging.error(f"Failed to process batch {batch_name}: {e}", exc_info=True)
+
+
+def run_batch(batch_name):
+    asyncio.run(run_batch_async(batch_name))
+
 
 def main():
-    known_args, pipeline_args = cli_args()
+    known_args, _ = cli_args()
     for batch in range(known_args.start_batch, known_args.end_batch + 1):
         batch_name = f"PMC{str(batch).zfill(3)}xxxxxx"
-        logging.debug(f"🔥 Starting processing for {batch_name}")
-        try:
-            pipeline_options = configure_pipeline_options(known_args, pipeline_args, batch_name)
-            bucket_name = "geniac-pmc"
-            run_batch(pipeline_options, bucket_name, batch_name)
-        except Exception as e:
-            logging.error(f"Failed to process batch {batch_name}: {e}", exc_info=True)
+        print(f"🔥 Starting processing for {batch_name}")
+        run_batch(batch_name)
 
 if __name__ == "__main__":
     main()

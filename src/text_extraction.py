@@ -3,11 +3,11 @@ import logging
 
 def generate_record(xml_string):
     abstract_text, body_text = extract_abstract_and_body_text(xml_string)
-    
+
     abstract_text = "" if abstract_text is None else abstract_text
     body_text = "" if body_text is None else body_text
     concat_text = f"{abstract_text}\n\n{body_text}"
-    logging.debug(f"🔤 concat_text length: {len(concat_text)}")
+    # logging.debug(f"🔤 concat_text length: {len(concat_text)}")
     return concat_text
 
 def extract_abstract_and_body_text(xml_string):
@@ -33,14 +33,14 @@ def xml_to_plain_text(xml_string):
             return text
         # secとtitleタグのテキストの後に改行を挿入
         if element.tag == 'sec' or element.tag == 'title':
-            text += ''.join(element.itertext()).strip() + "\n"
+            text += " ".join(element.itertext()).strip() + "\n"
         # p, bold, italicタグはそのまま
         elif element.tag == 'p' or element.tag == 'bold' or element.tag == 'italic':
-            text += ''.join(element.itertext()).strip()
+            text += " ".join(element.itertext()).strip()
         # 子要素の処理
         for child in element:
             text += process_element(child)
-        
+
         return text
 
     root = ET.fromstring(xml_string)
