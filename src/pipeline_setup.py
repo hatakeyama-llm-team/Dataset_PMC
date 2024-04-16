@@ -17,7 +17,6 @@ def configure_pipeline_options(known_args, pipeline_args, batch_name):
     print(f"⌛️ Setting up pipeline for {batch_name}")
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = known_args.credidental_path
     options = PipelineOptions(pipeline_args)
-    options.view_as(StandardOptions).runner = 'DataflowRunner'
     google_cloud_options = options.view_as(GoogleCloudOptions)
     google_cloud_options.region = known_args.location
     google_cloud_options.project = known_args.gcp_project_id
