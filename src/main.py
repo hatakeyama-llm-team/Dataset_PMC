@@ -17,42 +17,38 @@ logging.basicConfig(level=logging.DEBUG)
 
 def combine_json_files(batch_name, total_files):
     json_dir = f"jsonl_files/{batch_name}/"
-    output_path = f"jsonl_files/{batch_name}.jsonl"
+    # JSONLのチャンクサイズ
+    chunk_size = 5000
+    json_files = [
+        filename for filename in os.listdir(json_dir) if filename.endswith(".json")
+    ]
+    total_json_files = len(json_files)
+    current_chunk = 0
+    processed_files = 0  # 処理済みファイル数のカウント
 
-    try:
+    for i in range(0, total_json_files, chunk_size):
+        output_path = f"jsonl_files/{batch_name}_{str(current_chunk).zfill(2)}.jsonl"
         with open(output_path, "w") as outfile:
-            json_files = [
-                filename
-                for filename in os.listdir(json_dir)
-                if filename.endswith(".json")
-            ]
-            total_json_files = len(json_files)
-
-            for i, filename in enumerate(json_files, start=1):
+            for filename in json_files[i : i + chunk_size]:
                 filepath = os.path.join(json_dir, filename)
                 with open(filepath, "r") as infile:
                     data = json.load(infile)
                     text = data["text"]
                     outfile.write(json.dumps({"text": text}) + "\n")
+                    processed_files += 1
+                    progress_message = f"⛏️ Create JSONL chunk: {processed_files}/{total_json_files} ({processed_files/total_json_files*100:.2f}%)"
+                    print(f"\r{progress_message}", end="", flush=True)
 
-                progress_message = f"🔮 Combining JSONL files: {i}/{total_json_files} ({i/total_json_files*100:.2f}%)"
-                print(f"\r{progress_message}", end="", flush=True)
+        print(f"\n💎 Successfully created JSONL chunk into: {output_path}")
+        current_chunk += 1
 
-        print()  # 改行を追加
-        print(f"🍻 Successfully combined JSONL files into: {output_path}")
+    # JSONLファイルの作成が完了したら、jsonl_files/{batch_name}直下のJSONファイルを全て削除
+    for filename in os.listdir(json_dir):
+        if filename.endswith(".json"):
+            filepath = os.path.join(json_dir, filename)
+            os.remove(filepath)
 
-        # JSONLファイルの作成が完了したら、jsonl_files/{batch_name}直下のJSONファイルを全て削除
-        for filename in os.listdir(json_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(json_dir, filename)
-                os.remove(filepath)
-
-        print(f"🗑️  Deleted JSON files in: {json_dir}")
-    except Exception as e:
-        logging.error(
-            f"💀 Failed to combine JSONL files for batch {batch_name}: {e}",
-            exc_info=True,
-        )
+    print(f"\n🗑️  Deleted JSON files in: {json_dir}")
 
 
 async def download_and_extract_tar_async(batch_name):
