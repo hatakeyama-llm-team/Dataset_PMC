@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import logging
+import resource
 import tarfile
 import pandas as pd
 import time
@@ -9,16 +10,19 @@ from pipeline_setup import cli_args
 from text_extraction import generate_record
 from google.cloud import storage
 import concurrent.futures
-import xml.etree.ElementTree as ET
+import aiofiles
+from memory_profiler import profile
 
 # Loggerの設定
 logging.basicConfig(level=logging.DEBUG)
 
 
+@profile
 def combine_json_files(batch_name, total_files):
+    print(f"\n🔗 Combining JSONL files for {batch_name}")
     json_dir = f"jsonl_files/{batch_name}/"
     # JSONLのチャンクサイズ
-    chunk_size = 5000
+    chunk_size = 2000
     json_files = [
         filename for filename in os.listdir(json_dir) if filename.endswith(".json")
     ]
@@ -49,14 +53,17 @@ def combine_json_files(batch_name, total_files):
             os.remove(filepath)
 
     print(f"\n🗑️  Deleted JSON files in: {json_dir}")
+    pass
 
 
+@profile
 async def download_and_extract_tar_async(batch_name):
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "sec/geniac-416410-5bded920e947.json"
     bucket_name = "geniac-pmc"
     tar_filename = f"oa_comm_xml.{batch_name}.baseline.2023-12-18.tar.gz"
     tar_path = f"original_files/{tar_filename}"
     destination_path = "xml_files"
+    local_tar_path = os.path.join(tar_filename)
 
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
@@ -64,88 +71,93 @@ async def download_and_extract_tar_async(batch_name):
 
     try:
         os.makedirs(destination_path, exist_ok=True)
-        blob.download_to_filename(tar_filename)
-        print(f"📦 Successfully downloaded tar file: {tar_filename}")
+        if not os.path.exists(local_tar_path):
+            print(f"📦  Downloading tar file: {tar_filename}")
+            blob.download_to_filename(local_tar_path)
+        else:
+            print(f"⏩  Using existing tar file: {tar_filename}")
 
-        with tarfile.open(tar_filename, "r:gz") as tar:
+        print(f"🗃️  Extracting downloaded tar file: {tar_filename}")
+        with tarfile.open(local_tar_path, "r:gz") as tar:
             tar.extractall(path=destination_path)
-        print(f"🗃️  Successfully extracted tar file to: {destination_path}")
+        print(f"💡  Successfully extracted tar file to: {destination_path}")
 
-        os.remove(tar_filename)
+        os.remove(local_tar_path)
         print(f"🗑️  Deleted tar file: {tar_filename}")
     except Exception as e:
         logging.error(f"💀 Failed to download and extract tar file: {e}", exc_info=True)
+    pass
+
+
+@profile
+async def write_to_json(record, batch_name, total_files, current_file):
+    filepath = record["filepath"]
+    file_name = os.path.basename(filepath).replace(".xml", ".json")
+    output_path = f"jsonl_files/{batch_name}/{file_name}"
+
+    try:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        async with aiofiles.open(output_path, "w") as json_file:
+            await json_file.write(json.dumps(record))
+        progress_message = f"🌞 Processing files: {current_file}/{total_files} ({current_file/total_files*100:.2f}%)"
+        print(f"\r{progress_message}", end="", flush=True)
+    except Exception as e:
+        logging.error(
+            f"💀 Failed to write record to JSON: {output_path}: {e}", exc_info=True
+        )
+    pass
+
+
+@profile
+async def process_xml_file(filepath, semaphore):
+    try:
+        async with semaphore:  # セマフォを関数の引数から受け取る
+            async with aiofiles.open(filepath, "r") as file:
+                xml_string = await file.read()
+
+        if not xml_string:
+            logging.warning(f"File is empty: {filepath}")
+            return None
+
+        record = generate_record(xml_string)
+        if record == "":
+            logging.warning(f"No content extracted from XML: {filepath}")
+        return {"text": record, "filepath": filepath} if record else None
+    except Exception as e:
+        logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
+        return None
+    pass
+
+
+def get_max_open_files():
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    print(f"📈 Soft limit: {soft}, Hard limit: {hard}")
+    # セーフティマージンとして、ハードリミットの75%を使用
+    return int(soft * 0.75)
 
 
 async def run_batch_async(batch_name):
+    loop = asyncio.get_running_loop()
+    max_open_files = get_max_open_files()  # 最大ファイルオープン数を取得
+    open_file_semaphore = asyncio.Semaphore(
+        value=max_open_files, loop=loop
+    )  # セマフォの作成
+
     await download_and_extract_tar_async(batch_name)
-
-    def process_xml_file(filepath):
-        xml_files_base = "xml_files"
-        filepath = os.path.join(xml_files_base, filepath)
-        try:
-            record = None
-            with open(filepath, "r") as file:
-                xml_string = file.read()
-
-            if not xml_string:
-                logging.warning(f"File is empty: {filepath}")
-                return None
-
-            record = generate_record(xml_string)
-            if record == "":
-                logging.warning(f"No content extracted from XML: {filepath}")
-            return {"text": record, "filepath": filepath} if record else None
-        except Exception as e:
-            logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
-            return None
-
-    def write_to_json(record, batch_name, total_files, current_file):
-        filepath = record["filepath"]
-        file_name = os.path.basename(filepath).replace(".xml", ".json")
-        output_path = f"jsonl_files/{batch_name}/{file_name}"
-        try:
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            with open(output_path, "w") as json_file:
-                json.dump(record, json_file)
-            progress_message = f"🍀 Processing files: {current_file}/{total_files}"
-            print(f"\r{progress_message}", end="", flush=True)
-        except Exception as e:
-            logging.error(
-                f"💀 Failed to write record to JSON: {output_path}: {e}", exc_info=True
-            )
-
     csv_path = f"target/{batch_name}.csv"
-
     try:
         df = pd.read_csv(csv_path, header=None, skiprows=1)
         xml_filenames = df.iloc[:, 0].dropna().tolist()
         total_files = len(xml_filenames)
-        print(f"🌼 Number of valid XML filenames extracted: {total_files}")
 
-        if not xml_filenames:
-            logging.error("No XML files found for processing.")
-            return
-        
-        max_workers = os.cpu_count()
-        print(f"💿 {max_workers} threads")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_xml = {
-                executor.submit(process_xml_file, filename): filename
-                for filename in xml_filenames
-            }
-            for future in concurrent.futures.as_completed(future_to_xml):
-                filename = future_to_xml[future]
-                record = future.result()
-                if record is not None:
-                    write_to_json(
-                        record,
-                        batch_name,
-                        total_files,
-                        xml_filenames.index(filename) + 1,
-                    )
-
-        print()  # 改行を追加
+        tasks = [
+            process_xml_file(os.path.join("xml_files", filename), open_file_semaphore)
+            for filename in xml_filenames
+        ]
+        records = await asyncio.gather(*tasks)
+        for index, record in enumerate(records):
+            if record:
+                await write_to_json(record, batch_name, total_files, index + 1)
 
         combine_json_files(batch_name, total_files)
 
