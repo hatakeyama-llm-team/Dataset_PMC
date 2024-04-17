@@ -8,6 +8,8 @@ import time
 from pipeline_setup import cli_args
 from text_extraction import generate_record
 from google.cloud import storage
+import concurrent.futures
+import xml.etree.ElementTree as ET
 
 # Loggerの設定
 logging.basicConfig(level=logging.DEBUG)
@@ -33,7 +35,7 @@ def combine_json_files(batch_name, total_files):
                     text = data["text"]
                     outfile.write(json.dumps({"text": text}) + "\n")
 
-                progress_message = f"🔮 Combining JSONL files: {i}/{total_json_files}"
+                progress_message = f"🔮 Combining JSONL files: {i}/{total_json_files} ({i/total_json_files*100:.2f}%)"
                 print(f"\r{progress_message}", end="", flush=True)
 
         print()  # 改行を追加
@@ -85,8 +87,8 @@ async def run_batch_async(batch_name):
     def process_xml_file(filepath):
         xml_files_base = "xml_files"
         filepath = os.path.join(xml_files_base, filepath)
-
         try:
+            record = None
             with open(filepath, "r") as file:
                 xml_string = file.read()
 
@@ -97,11 +99,7 @@ async def run_batch_async(batch_name):
             record = generate_record(xml_string)
             if record == "":
                 logging.warning(f"No content extracted from XML: {filepath}")
-                return None
-            return {"text": record, "filepath": filepath}
-        except FileNotFoundError:
-            logging.error(f"File not found: {filepath}")
-            return None
+            return {"text": record, "filepath": filepath} if record else None
         except Exception as e:
             logging.error(f"Failed to process file {filepath}: {e}", exc_info=True)
             return None
@@ -110,15 +108,12 @@ async def run_batch_async(batch_name):
         filepath = record["filepath"]
         file_name = os.path.basename(filepath).replace(".xml", ".json")
         output_path = f"jsonl_files/{batch_name}/{file_name}"
-
         try:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            df = pd.DataFrame([record])
-            df.to_json(output_path, orient="records", lines=True)
-
+            with open(output_path, "w") as json_file:
+                json.dump(record, json_file)
             progress_message = f"🍀 Processing files: {current_file}/{total_files}"
             print(f"\r{progress_message}", end="", flush=True)
-
         except Exception as e:
             logging.error(
                 f"💀 Failed to write record to JSON: {output_path}: {e}", exc_info=True
@@ -136,10 +131,21 @@ async def run_batch_async(batch_name):
             logging.error("No XML files found for processing.")
             return
 
-        for i, filename in enumerate(xml_filenames, start=1):
-            record = process_xml_file(filename)
-            if record is not None:
-                write_to_json(record, batch_name, total_files, i)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            future_to_xml = {
+                executor.submit(process_xml_file, filename): filename
+                for filename in xml_filenames
+            }
+            for future in concurrent.futures.as_completed(future_to_xml):
+                filename = future_to_xml[future]
+                record = future.result()
+                if record is not None:
+                    write_to_json(
+                        record,
+                        batch_name,
+                        total_files,
+                        xml_filenames.index(filename) + 1,
+                    )
 
         print()  # 改行を追加
 
