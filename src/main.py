@@ -130,8 +130,10 @@ async def run_batch_async(batch_name):
         if not xml_filenames:
             logging.error("No XML files found for processing.")
             return
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        
+        max_workers = os.cpu_count()
+        print(f"💿 {max_workers} threads")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_xml = {
                 executor.submit(process_xml_file, filename): filename
                 for filename in xml_filenames
