@@ -1,14 +1,8 @@
 import xml.etree.ElementTree as ET
-import logging
 
 def generate_record(xml_string):
     abstract_text, body_text = extract_abstract_and_body_text(xml_string)
-
-    abstract_text = "" if abstract_text is None else abstract_text
-    body_text = "" if body_text is None else body_text
-    concat_text = f"{abstract_text}\n\n{body_text}"
-    # logging.debug(f"🔤 concat_text length: {len(concat_text)}")
-    return concat_text
+    return f"{abstract_text}\n\n{body_text}".strip()
 
 def extract_abstract_and_body_text(xml_string):
     try:

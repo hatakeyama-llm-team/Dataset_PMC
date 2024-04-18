@@ -107,6 +107,9 @@ async def run_batch_async(batch_name):
             return None
 
     def write_to_json(record, batch_name, total_files, current_file):
+        if record["text"] == "":
+            return  # Skip writing JSON if text is empty
+
         filepath = record["filepath"]
         file_name = os.path.basename(filepath).replace(".xml", ".json")
         output_path = f"jsonl_files/{batch_name}/{file_name}"
@@ -144,6 +147,13 @@ async def run_batch_async(batch_name):
         print()  # 改行を追加
 
         combine_json_files(batch_name, total_files)
+        # Delete the directory after writing all JSONs
+        xml_dir = f"xml_files/{batch_name}"
+        if os.path.exists(xml_dir):
+            for file in os.listdir(xml_dir):
+                os.remove(os.path.join(xml_dir, file))
+            os.rmdir(xml_dir)
+            print(f"🗑️  Deleted XML files in: {xml_dir}")
 
     except FileNotFoundError:
         logging.error(f"CSV file not found: {csv_path}")
