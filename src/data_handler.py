@@ -1,7 +1,7 @@
 import tarfile
 from google.cloud import storage
 import asyncio
-from config import GCPConfig
+from config import GCPConfig, HFConfig
 import os
 import json
 import logging
@@ -17,22 +17,19 @@ async def download_and_extract_tar(batch_name):
     
     blob = bucket.blob(tar_path)
 
-    # Download the tar file asynchronously
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, blob.download_to_filename, tar_filename)
 
-    # Extract the tar file
     print("🗃️  Extracting tar")
     with tarfile.open(tar_filename, "r:gz") as tar:
         await loop.run_in_executor(None, tar.extractall, destination_path)
     os.remove(tar_filename)
 
-async def combine_json_files(batch_name, max_file_size=50*1024**3):  # 50GB の最大ファイルサイズ
+async def combine_json_files(batch_name):
     json_dir = f"jsonl_files/{batch_name}/"
-    output_base_path = f"jsonl_files/{batch_name}"
     file_counter = 0
     current_file_size = 0
-    current_file_path = f"{output_base_path}_{file_counter}.jsonl"
+    current_file_path = f"{batch_name}_{file_counter}.jsonl"
     file_stream = await aiofiles.open(current_file_path, "w")
 
     try:
@@ -44,12 +41,12 @@ async def combine_json_files(batch_name, max_file_size=50*1024**3):  # 50GB の�
             async with aiofiles.open(filepath, "r") as infile:
                 data = json.loads(await infile.read())
                 text = json.dumps({"text": data["text"]})
-                if current_file_size + len(text.encode('utf-8')) > max_file_size:
+                if current_file_size + len(text.encode('utf-8')) > HFConfig.MAX_FILE_SIZE:
                     await file_stream.close()
                     file_counter += 1
-                    current_file_path = f"{output_base_path}_{file_counter}.jsonl"
+                    current_file_path = f"{batch_name}_{file_counter}.jsonl"
                     file_stream = await aiofiles.open(current_file_path, "w")
-                    current_file_size = 0  # ファイルサイズリセット
+                    current_file_size = 0
                 await file_stream.write(text + "\n")
                 current_file_size += len(text.encode('utf-8'))
 
@@ -62,8 +59,9 @@ async def combine_json_files(batch_name, max_file_size=50*1024**3):  # 50GB の�
     finally:
         await file_stream.close()
 
-    return [f"{output_base_path}_{i}.jsonl" for i in range(file_counter + 1)]
-      
+    return [f"{batch_name}_{i}.jsonl" for i in range(file_counter + 1)]
+
+
 async def delete_json_files(directory):
     for filename in os.listdir(directory):
         if filename.endswith(".json"):
