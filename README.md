@@ -3,36 +3,29 @@
 このプロジェクトは、ライフサイエンス系のデータセット構築を目的としています。Docker、Poetry、および Google Cloud Platform (GCP) の Dataflow を使用して、PMC OA Subsetからデータを処理し、分析用のデータセットを構築します。
 devcontainerを使用しているため、VSCodeでの開発を推奨します。
 
+## Setup
+```sh
+# 環境のPythonを3.9.15に合わせる
+## conda
+conda create --name 3.9.15 python=3.9.15 && conda activate 3.9.15
+
+## asdf
+asdf install python 3.9.15 && adsf local python 3.9.15
+```
+
 ## Usage
 
 ```sh
-docker build -t gcr.io/geniac-416410/pmc:latest .
-# 認証がまだの場合
-gcloud auth activate-service-account --key-file=./sec/geniac-416410-5bded920e947.json
-docker push gcr.io/geniac-416410/pmc:latest
-```
-
-```sh
-# Dataflowでの実行
-poetry run python src/main.py --start_batch 0 --end_batch 10 \
-    --machine_type e2-standard-4 \
-    --runner DataflowRunner \
-    --location us-east1 \
-    --sdk_container_image gcr.io/geniac-416410/pmc:latest \
-    --experiments use_runner_v2
-```
-
-```sh
-# ローカルでの実行
-poetry run python src/main.py --start_batch 0 --end_batch 10
+# PMC000 - PMC010に対して、DirectRunnerで実行
+poetry run python src/main.py --start_batch 0 --end_batch 10 --runner DirectRunner --machine_type m3-ultramem-64
 ```
 
 ## Dataset
 ダウンロードしてくる全データのうち、ライセンスが「CC BY」または「CC0」のデータのみを `target/`  に抽出しています。
-`target` ディレクトリのCSVファイルには「CC BY」または「CC0」のデータが記載されており、記載されているデータのみを対象としてparquetファイルに変換しています。
+`target` ディレクトリのCSVファイルには「CC BY」または「CC0」のデータが記載されており、記載されているデータのみを対象として抽出しています。
 
 ## XML Convert
-XMLから `<abstract></abstract>` と `<body></body>` のテキストを抽出し、Parquetファイルに変換しています。
+XMLから `<abstract></abstract>` と `<body></body>` のテキストを抽出して連結し、JSONファイルに変換しています。
 
 | tag | process |
 | --- | --- |
@@ -48,9 +41,21 @@ XMLから `<abstract></abstract>` と `<body></body>` のテキストを抽出�
 - text + \n ... テキスト + 改行
 - x ... 除去
 
-## Parquet
-| column | type |
-| --- | --- |
-| content | string |
+## JSONL(JSON Lines)
 
-- content ... XMLのAbstract+Bodyを結合したテキスト
+`text` のみからなるJSONを連結し、batchごとに長大なJSONLを生成します。
+
+```jsonl
+{
+    "text": "Background Previous reports indicate altered ..."
+},
+{
+    "text": "ackground Neurogenic Para-Osteo-Arthropathy ..."
+}
+```
+
+1ファイルが50GBを超える場合は複数のファイルにチャンキングされます。
+
+## Hugging Face
+
+JSONLの生成完了後に自動でHugging Faceにアップロードします。
