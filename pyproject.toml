@@ -20,6 +20,11 @@ pyarrow = "<15.0.0"
 scipy = "<1.11"
 apache-beam = {version = "2.54.0", extras = ["gcp"]}
 tqdm = "^4.66.2"
+huggingface-hub = "^0.22.2"
+python-dotenv = "^1.0.1"
+aiofiles = "^23.2.1"
+aiohttp = "^3.9.5"
+datasets = "^2.19.0"
 
 
 [build-system]

@@ -1,43 +1,18 @@
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
+import asyncio
+import time
+from pipeline_setup import cli_args
+from batch_process import run_batch_async
 
-import os
-from google.cloud import storage
-from data_analysis import analyze_and_upload
-from pipeline_setup import setup_pipeline_args
-import pandas as pd
-from tqdm import tqdm
-
-def read_valid_files(batch_name):
-    csv_path = os.path.join(os.path.dirname(__file__), '..', 'target', f'{batch_name}_oa_files.csv')
-    df = pd.read_csv(csv_path)
-    return set(df['file_name'].apply(lambda x: x.split('/')[-1]))
-
-def generate_params_dict_list(batch_name, valid_files):
-    bucket_name = "geniac-pmc"
-    storage_client = storage.Client()
-    blobs = list(storage_client.list_blobs(bucket_name, prefix=f"xml_files/{batch_name}/"))
-    prefix_length = len(f"xml_files/{batch_name}/")
-
-    return [{
-        "bucket_name": bucket_name,
-        "input_gs_path": blob.name,
-        "output_gs_path": f"parquet_files/{batch_name}/{os.path.basename(blob.name).replace('.xml', '.parquet')}"
-    } for blob in blobs if blob.name[prefix_length:] in valid_files]
-
-def main(argv=None):
-    known_args, pipeline_args = setup_pipeline_args(argv)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = known_args.credidental_path
-
-    batch_names = [known_args.batch_name] if known_args.batch_name else ["PMC0{:02d}xxxxxx".format(i) for i in range(11)]
-
-    for batch_name in batch_names:
-        valid_files = read_valid_files(batch_name)
-        
-        with tqdm(total=len(valid_files), desc=f"Processing batch: {batch_name}") as pbar:
-            analyze_and_upload(batch_name, "geniac-pmc", valid_files, pbar)
-
-        tqdm.write(f"Completed batch: {batch_name} with {len(valid_files)} files processed")
+async def main():
+    known_args, _ = cli_args()
+    for batch in range(known_args.start_batch, known_args.end_batch + 1):
+        batch_name = f"PMC{str(batch).zfill(3)}xxxxxx"
+        print(f"🔥 Starting processing for {batch_name}")
+        start_time = time.time()
+        await run_batch_async(batch_name)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"🕒 Batch {batch_name} completed in {execution_time:.2f} seconds")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

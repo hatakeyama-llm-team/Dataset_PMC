@@ -40,7 +40,10 @@ pip-wheel-metadata
 
 poetry/core/*
 
-
-en_core_sci_*
 sec/*
 tmp/*
+storage/*
+jsonl_files/*
+xml_files/*
+*.tar.gz
+.env
