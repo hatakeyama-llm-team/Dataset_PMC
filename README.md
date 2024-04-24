@@ -72,4 +72,9 @@ XMLから `<abstract></abstract>` と `<body></body>` のテキストを抽出�
 JSONLの生成完了後に自動でHugging Faceにアップロードされます。  
 ただしある程度大きいファイルをアップロードする際にはHugging Face側のエラーになることがあります。  
 その際には以下のように手動でアップロードしてください。  
-`poetry run python script/uploadHuggingface.py PMC010xxxxxx_0.jsonl` 
+
+```
+$ poetry run python script/uploadHuggingface.py PMC010xxxxxx_0.jsonl 
+Uploading PMC010xxxxxx_0.jsonl...
+PMC010xxxxxx_0.jsonl:  26%|█████████                    | 10.4G/39.7G [02:51<06:28, 75.7MB/s]
+```
