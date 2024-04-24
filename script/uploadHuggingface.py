@@ -24,7 +24,7 @@ for filename in jsonl_files:
     api.upload_file(
         token=access_token,
         repo_id=repo_id,
-        path_in_repo=f"datasets/{filename}",
+        path_in_repo=f"{filename}",
         path_or_fileobj=filename,
         repo_type='dataset'
     )
