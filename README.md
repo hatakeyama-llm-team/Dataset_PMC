@@ -5,12 +5,23 @@ devcontainerを使用しているため、VSCodeでの開発を推奨します�
 
 ## Setup
 ```sh
+# .envの設定
+mv .env.example .env
+# Hugging FaecでWRITE権限のAccess Tokenを作成してセット https://huggingface.co/settings/tokens
+```
+
+```sh
 # 環境のPythonを3.9.15に合わせる
 ## conda
 conda create --name 3.9.15 python=3.9.15 && conda activate 3.9.15
 
 ## asdf
 asdf install python 3.9.15 && adsf local python 3.9.15
+```
+
+```sh
+poetry env use 3.9.15
+poetry install
 ```
 
 ## Usage
@@ -58,4 +69,12 @@ XMLから `<abstract></abstract>` と `<body></body>` のテキストを抽出�
 
 ## Hugging Face
 
-JSONLの生成完了後に自動でHugging Faceにアップロードします。
+JSONLの生成完了後に自動でHugging Faceにアップロードされます。  
+ただしある程度大きいファイルをアップロードする際にはHugging Face側のエラーになることがあります。  
+その際には以下のように手動でアップロードしてください。  
+
+```
+$ poetry run python script/uploadHuggingface.py PMC010xxxxxx_0.jsonl 
+Uploading PMC010xxxxxx_0.jsonl...
+PMC010xxxxxx_0.jsonl:  26%|█████████                    | 10.4G/39.7G [02:51<06:28, 75.7MB/s]
+```
