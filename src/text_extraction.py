@@ -139,6 +139,16 @@ def remove_incomplete_sentence_at_start(text):
         text = text.lstrip()
     return text
 
+def remove_dirty_text(text):
+    # Remove empty parentheses
+    text = re.sub(r'\(\s*\)', '', text)
+    # Remove content in parentheses if it contains a semicolon
+    text = re.sub(r'\([^)]*;[^)]*\)', '', text)
+    # Remove content in parentheses if it contains the substring 'Fig'
+    text = re.sub(r'\([^)]*Fig[^)]*\)', '', text)
+    # Remove content in parentheses if it contains the substring 'al'
+    text = re.sub(r'\([^)]*al[^)]*\)', '', text)
+    return text
 
 def extract_abstract_and_body_text(xml_string):
     try:
@@ -164,17 +174,17 @@ def extract_abstract_and_body_text(xml_string):
         body_text = remove_xref_and_wrapped_brackets(body_text)
 
         # Removing unnecessary elements
-        remove_list = ["title", "fig", "table-wrap", "inline-formula", "disp-formula"]
+        remove_list = ["title", "xref", "fig", "table-wrap", "inline-formula", "disp-formula"]
         abstract_text = remove_unnecessary_elements(
             f"<root>{abstract_text}</root>", remove_list
         )
         body_text = remove_unnecessary_elements(
             f"<root>{body_text}</root>", remove_list
         )
-
-        # Normalize whitespace and remove remaining tags
-        abstract_text = re.sub(r"\s{2,}", " ", abstract_text).strip()
-        body_text = re.sub(r"\s{2,}", " ", body_text).strip()
+        
+        # Remove dirty text
+        abstract_text = remove_dirty_text(abstract_text)
+        body_text = remove_dirty_text(body_text)
 
         # Remove incomplete sentence at the start if needed
         abstract_text = remove_incomplete_sentence_at_start(abstract_text)
