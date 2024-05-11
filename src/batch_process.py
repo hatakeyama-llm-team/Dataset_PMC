@@ -3,6 +3,7 @@ from huggingface import upload_to_huggingface
 from data_handler import download_and_extract_tar, combine_json_files
 from xml_processing import process_batch
 
+
 async def run_batch_async(batch_name):
     await download_and_extract_tar(batch_name)
     processed_files = await process_batch(batch_name)
