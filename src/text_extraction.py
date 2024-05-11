@@ -139,15 +139,26 @@ def remove_incomplete_sentence_at_start(text):
         text = text.lstrip()
     return text
 
+
 def remove_dirty_text(text):
-    # Remove empty parentheses
+    # 空の丸括弧 () を除去
     text = re.sub(r'\(\s*\)', '', text)
-    # Remove content in parentheses if it contains a semicolon
-    text = re.sub(r'\([^)]*;[^)]*\)', '', text)
-    # Remove content in parentheses if it contains the substring 'Fig'
+
+    # 丸括弧内にセミコロン ; またはカンマ , が含まれる場合のテキストを除去
+    text = re.sub(r'\([^)]*[;,][^)]*\)', '', text)
+
+    # 丸括弧内に 'Fig' という文字列が含まれる場合のテキストを除去
     text = re.sub(r'\([^)]*Fig[^)]*\)', '', text)
-    # Remove content in parentheses if it contains the substring 'al'
+
+    # 丸括弧内に 'al' という文字列が含まれる場合のテキストを除去
     text = re.sub(r'\([^)]*al[^)]*\)', '', text)
+
+    # 空の角括弧 [] を除去
+    text = re.sub(r'\[\s*\]', '', text)
+
+    # 角括弧内にセミコロン ; またはカンマ , が含まれる場合のテキストを除去
+    text = re.sub(r'\[[^]]*[;,][^]]*\]', '', text)
+
     return text
 
 def extract_abstract_and_body_text(xml_string):
