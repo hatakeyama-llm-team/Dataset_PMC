@@ -78,3 +78,14 @@ $ poetry run python script/uploadHuggingface.py PMC010xxxxxx_0.jsonl
 Uploading PMC010xxxxxx_0.jsonl...
 PMC010xxxxxx_0.jsonl:  26%|█████████                    | 10.4G/39.7G [02:51<06:28, 75.7MB/s]
 ```
+
+## Dedup
+事前にscript直下にjsonlファイルを配置してください。
+```sh
+$ make all
+$ make run FILE=./PMC000xxxxxx_0.jsonl
+```
+
+outputには以下が出力されます。  
+- `dedup_PMC000xxxxxx_0.jsonl` // 重複を削除したjsonlファイル  
+- `similar_texts.txt` // 似ていると判断されたテキストのペア  
