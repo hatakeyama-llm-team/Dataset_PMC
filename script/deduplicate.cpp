@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <filesystem>
+#include <chrono>
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
@@ -58,7 +59,7 @@ double similarity(const char *s1, const char *s2) {
     return 1.0 - static_cast<double>(distance) / max_length;
 }
 
-void process_batch(std::vector<std::string>& batch, std::unordered_set<std::string>& all_representatives, std::ofstream& out_file, std::ofstream& log_file, int& processed_lines) {
+void process_batch(std::vector<std::string>& batch, std::unordered_set<std::string>& all_representatives, std::ofstream& out_file, std::ofstream& log_file, int& processed_lines, std::chrono::steady_clock::time_point start_time) {
     std::vector<TextGroup> groups;
 
     for (const std::string& line : batch) {
@@ -121,7 +122,9 @@ void process_batch(std::vector<std::string>& batch, std::unordered_set<std::stri
     }
 
     processed_lines += batch.size();
-    std::cout << "Processed " << processed_lines << " lines so far." << std::endl;
+    auto current_time = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+    std::cout << "🏎️  Processed " << processed_lines << " (Elapsed time: " << elapsed << "s)" << std::endl;
     std::cout.flush(); // Ensure that the progress is output immediately
 }
 
@@ -152,7 +155,7 @@ int main(int argc, char *argv[]) {
     int total_lines = std::count(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), '\n');
     file.clear();  // Clear EOF flag
     file.seekg(0); // Move to the beginning of the file
-    std::cout << "Total lines in input file: " << total_lines << std::endl;
+    std::cout << "🔥 Total lines in input file: " << total_lines << std::endl;
 
     std::ofstream out_file(output_file);
     if (!out_file.is_open()) {
@@ -171,24 +174,31 @@ int main(int argc, char *argv[]) {
     std::unordered_set<std::string> all_representatives;
     int processed_lines = 0;
 
+    // Start the clock
+    auto start_time = std::chrono::steady_clock::now();
+
     while (std::getline(file, line)) {
         batch.push_back(line);
         if (batch.size() >= BATCH_SIZE) {
-            process_batch(batch, all_representatives, out_file, log_file, processed_lines);
+            process_batch(batch, all_representatives, out_file, log_file, processed_lines, start_time);
             batch.clear();
         }
     }
 
     if (!batch.empty()) {
-        process_batch(batch, all_representatives, out_file, log_file, processed_lines);
+        process_batch(batch, all_representatives, out_file, log_file, processed_lines, start_time);
     }
 
     // Close the output file and count the number of lines
     out_file.close();
     std::ifstream final_output(output_file);
     int output_lines = std::count(std::istreambuf_iterator<char>(final_output), std::istreambuf_iterator<char>(), '\n');
-    std::cout << "Total lines in output file: " << output_lines << std::endl;
-    std::cout << "Reduction: " << total_lines - output_lines << " lines." << std::endl;
+    std::cout << "🌈 Total lines in output file: " << output_lines << std::endl;
+    std::cout << "🗑️  Reduction: " << total_lines - output_lines << " lines." << std::endl;
+
+    auto end_time = std::chrono::steady_clock::now();
+    auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
+    std::cout << "⏱️  Total processing time: " << total_elapsed << "s." << std::endl;
 
     return 0;
 }
