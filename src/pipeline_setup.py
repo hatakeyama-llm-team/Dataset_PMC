@@ -1,20 +1,28 @@
 import argparse
 import os
 from dotenv import load_dotenv
-from apache_beam.options.pipeline_options import PipelineOptions, GoogleCloudOptions, WorkerOptions
+from apache_beam.options.pipeline_options import (
+    PipelineOptions,
+    GoogleCloudOptions,
+    WorkerOptions,
+)
 import secrets
 from config import GCPConfig
 
 load_dotenv()
 
+
 def cli_args(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--location', default=GCPConfig.REGION)
-    parser.add_argument('--start_batch', default=0, type=int, help="Start batch number")
-    parser.add_argument('--end_batch', default=10, type=int, help="End batch number")
-    parser.add_argument('--gcp_project_id', default=GCPConfig.PROJECT_ID, type=str)
-    parser.add_argument('--credidental_path', default=GCPConfig.CREDENTIAL_PATH, type=str)
+    parser.add_argument("--location", default=GCPConfig.REGION)
+    parser.add_argument("--start_batch", default=0, type=int, help="Start batch number")
+    parser.add_argument("--end_batch", default=10, type=int, help="End batch number")
+    parser.add_argument("--gcp_project_id", default=GCPConfig.PROJECT_ID, type=str)
+    parser.add_argument(
+        "--credidental_path", default=GCPConfig.CREDENTIAL_PATH, type=str
+    )
     return parser.parse_known_args(argv)
+
 
 # Dataflow pipeline setup
 def configure_pipeline_options(known_args, pipeline_args, batch_name):

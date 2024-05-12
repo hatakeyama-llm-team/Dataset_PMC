@@ -5,6 +5,8 @@ from text_extraction import generate_record
 import logging
 import asyncio
 import aiofiles
+import shutil
+
 
 async def process_xml_file(filepath):
     try:
@@ -17,7 +19,11 @@ async def process_xml_file(filepath):
             return None
 
         # Ensure the generate_record function can handle empty strings gracefully
-        record = await generate_record(xml_string) if asyncio.iscoroutinefunction(generate_record) else generate_record(xml_string)
+        record = (
+            await generate_record(xml_string)
+            if asyncio.iscoroutinefunction(generate_record)
+            else generate_record(xml_string)
+        )
         if not record:
             logging.warning(f"🦴 No content extracted from XML: {filepath}")
             return None
@@ -29,6 +35,7 @@ async def process_xml_file(filepath):
         logging.error(f"❌ Failed to process file {filepath}: {e}", exc_info=True)
         return None
 
+
 async def write_to_json(record, batch_name):
     if record and record["text"]:
         filepath = record["filepath"]
@@ -37,14 +44,17 @@ async def write_to_json(record, batch_name):
 
         try:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            async with aiofiles.open(output_path, 'w') as json_file:
+            async with aiofiles.open(output_path, "w") as json_file:
                 await json_file.write(json.dumps(record))
             return output_path
         except Exception as e:
-            logging.error(f"❌ Failed to write record to JSON: {output_path}: {e}", exc_info=True)
+            logging.error(
+                f"❌ Failed to write record to JSON: {output_path}: {e}", exc_info=True
+            )
             return None
     else:
         return None
+
 
 async def process_batch(batch_name):
     csv_path = f"target/{batch_name}.csv"
@@ -75,3 +85,5 @@ async def process_batch(batch_name):
     except Exception as e:
         logging.error(f"💀 Failed to process batch {batch_name}: {e}", exc_info=True)
         return []
+    finally:
+        shutil.rmtree(f"xml_files/{batch_name}")
