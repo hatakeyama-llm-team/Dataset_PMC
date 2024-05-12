@@ -6,6 +6,7 @@ import os
 import json
 import logging
 import aiofiles
+import shutil
 
 
 async def download_and_extract_tar(batch_name):
@@ -66,12 +67,6 @@ async def combine_json_files(batch_name):
         )
     finally:
         await file_stream.close()
+        shutil.rmtree(json_dir)
 
     return [f"{batch_name}_{i}.jsonl" for i in range(file_counter + 1)]
-
-
-async def delete_json_files(directory):
-    for filename in os.listdir(directory):
-        if filename.endswith(".json"):
-            os.remove(os.path.join(directory, filename))
-    print(f"🗑️ Deleted JSON files in: {directory}")

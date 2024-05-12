@@ -5,6 +5,7 @@ from text_extraction import generate_record
 import logging
 import asyncio
 import aiofiles
+import shutil
 
 
 async def process_xml_file(filepath):
@@ -84,3 +85,5 @@ async def process_batch(batch_name):
     except Exception as e:
         logging.error(f"💀 Failed to process batch {batch_name}: {e}", exc_info=True)
         return []
+    finally:
+        shutil.rmtree(f"xml_files/{batch_name}")

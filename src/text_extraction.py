@@ -142,24 +142,25 @@ def remove_incomplete_sentence_at_start(text):
 
 def remove_dirty_text(text):
     # 空の丸括弧 () を除去
-    text = re.sub(r'\(\s*\)', '', text)
+    text = re.sub(r"\(\s*\)", "", text)
 
     # 丸括弧内にセミコロン ; またはカンマ , が含まれる場合のテキストを除去
-    text = re.sub(r'\([^)]*[;,][^)]*\)', '', text)
+    text = re.sub(r"\([^)]*[;,][^)]*\)", "", text)
 
     # 丸括弧内に 'Fig' という文字列が含まれる場合のテキストを除去
-    text = re.sub(r'\([^)]*Fig[^)]*\)', '', text)
+    text = re.sub(r"\([^)]*Fig[^)]*\)", "", text)
 
     # 丸括弧内に 'al' という文字列が含まれる場合のテキストを除去
-    text = re.sub(r'\([^)]*al[^)]*\)', '', text)
+    text = re.sub(r"\([^)]*al[^)]*\)", "", text)
 
     # 空の角括弧 [] を除去
-    text = re.sub(r'\[\s*\]', '', text)
+    text = re.sub(r"\[\s*\]", "", text)
 
     # 角括弧内にセミコロン ; またはカンマ , が含まれる場合のテキストを除去
-    text = re.sub(r'\[[^]]*[;,][^]]*\]', '', text)
+    text = re.sub(r"\[[^]]*[;,][^]]*\]", "", text)
 
     return text
+
 
 def extract_abstract_and_body_text(xml_string):
     try:
@@ -185,14 +186,21 @@ def extract_abstract_and_body_text(xml_string):
         body_text = remove_xref_and_wrapped_brackets(body_text)
 
         # Removing unnecessary elements
-        remove_list = ["title", "xref", "fig", "table-wrap", "inline-formula", "disp-formula"]
+        remove_list = [
+            "title",
+            "xref",
+            "fig",
+            "table-wrap",
+            "inline-formula",
+            "disp-formula",
+        ]
         abstract_text = remove_unnecessary_elements(
             f"<root>{abstract_text}</root>", remove_list
         )
         body_text = remove_unnecessary_elements(
             f"<root>{body_text}</root>", remove_list
         )
-        
+
         # Remove dirty text
         abstract_text = remove_dirty_text(abstract_text)
         body_text = remove_dirty_text(body_text)
