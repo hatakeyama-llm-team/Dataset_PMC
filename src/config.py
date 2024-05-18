@@ -15,5 +15,5 @@ class GCPConfig:
 
 class HFConfig:
     ACCESS_TOKEN = os.getenv("HF_ACCESS_TOKEN")
-    REPO_ID = os.getenv("HF_REPO_ID", "hatakeyama-llm-team/PMC")
+    REPO_ID = os.getenv("HF_REPO_ID", "hatakeyama-llm-team/PMC_DEDUP")
     MAX_FILE_SIZE = int(49.9 * 1000**3)

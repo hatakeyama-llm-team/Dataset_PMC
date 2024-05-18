@@ -39,7 +39,8 @@ pip-wheel-metadata
 /poetry.toml
 
 poetry/core/*
-
+output_clustering/*
+input_clustering/*
 sec/*
 tmp/*
 storage/*
