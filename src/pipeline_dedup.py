@@ -83,7 +83,7 @@ def download_bucket_with_transfer_manager(bucket_name, destination_directory="",
 # GCPから単一ファイルをダウンロードする関数
 def download_file(source_blob_name):
     from google.cloud import storage
-    bucket_name = 'dataflow-test-ok'
+    bucket_name = 'pmc-clustering-sentences'
     destination_file_name = f"./data/dedup_categorized/{source_blob_name}"
     directory = os.path.dirname(destination_file_name)
     print(source_blob_name)
@@ -97,7 +97,7 @@ def download_file(source_blob_name):
         os.makedirs(directory)    
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(f"{source_blob_name}")
+    blob = bucket.blob(f"output/{source_blob_name}")
     blob.download_to_filename(destination_file_name)
     
     return source_blob_name
@@ -111,7 +111,7 @@ def upload_blob(source_file_name):
     # param_input_list = os.listdir( './output/')
     # print(param_input_list)
     from google.cloud import storage
-    bucket_name = 'dataflow-test-ok'
+    bucket_name = 'pmc-clustering-sentences'
     source_file = f'./output/dedup_{source_file_name}'
     directory = os.path.dirname(source_file)
     # ディレクトリが存在するか確認し、存在しない場合は作成する    
@@ -131,8 +131,8 @@ def main():
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../sec/keen-hangar-419010-c00b94eccc4c-1.json"
     # bucket_name='pmc-clustering-sentences'
     options = StandardOptions()  # 1. 実行オプションの設定
-    bucket_name ='dataflow-test-ok'
-    options.runner = "DataflowRunner"  # Runnerもここで決めている #DataflowRunner
+    bucket_name ='pmc-clustering-sentences'
+    options.runner = "DirectRunner"  # Runnerもここで決めている #DataflowRunner
     google_cloud_options = options.view_as(GoogleCloudOptions)    
     job_name = f"genaic-dataflow-pmc-test-east1"
     google_cloud_options.region = "us-east1"
@@ -140,13 +140,13 @@ def main():
     google_cloud_options.job_name = job_name + '1'
     google_cloud_options.staging_location = f"gs://{bucket_name}/stage"
     google_cloud_options.temp_location = f"gs://{bucket_name}/temp/"
-    path_list = [f'PMC_clustering_{i}.jsonl' for i in range(10)]
+    path_list = [f'PMC_clustering_{i}.jsonl' for i in range(1)]
     # upload_blob('./dedup/output/dedup_PMC_clustering_2.jsonl')
     with beam.Pipeline(options=options)  as p:
         file_name = (
         p | 'create file list' >> beam.Create(path_list)        
-        #   | 'download' >> beam.Map(download_file)                
-        #   | 'dedup' >> beam.Map(run_command)
+          | 'download' >> beam.Map(download_file)                
+          | 'dedup' >> beam.Map(run_command)
         )
         a = file_name |'upload' >> beam.Map(upload_blob)
         
