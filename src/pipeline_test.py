@@ -79,6 +79,7 @@ def download_bucket_with_transfer_manager(bucket_name, destination_directory="",
         bucket, blob_names, destination_directory=destination_directory, max_workers=workers
     )
 
+
 def main():
     bucket_name='pmc-clustering-sentences'
     options = StandardOptions()  # 1. 実行オプションの設定

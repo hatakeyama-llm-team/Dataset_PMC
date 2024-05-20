@@ -48,6 +48,7 @@ jsonl_files/*
 xml_files/*
 *.tar.gz
 .env
-
+output/
+data/
 # script directory
 script/output/*

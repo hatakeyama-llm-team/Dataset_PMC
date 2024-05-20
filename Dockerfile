@@ -21,4 +21,4 @@ COPY --from=apache/beam_python3.9_sdk:2.54.0 /opt/apache/beam /opt/apache/beam
 # RUN poetry config virtualenvs.create false \
 # && poetry install --no-interaction --no-ansi
 
-#ENTRYPOINT ["/opt/apache/beam/boot"]
+ENTRYPOINT ["/opt/apache/beam/boot"]
