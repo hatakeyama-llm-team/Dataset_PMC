@@ -258,7 +258,19 @@ void process_batch(std::vector<std::string>& batch, std::unordered_set<std::stri
     std::cout << "🏎️  Processed " << processed_lines << " (Elapsed time: " << elapsed << "s)" << std::endl;
     std::cout.flush(); // Ensure that the progress is output immediately
 }
+void disable_output() {
+#ifdef _WIN32
+    freopen("nul", "w", stdout);
+    freopen("nul", "w", stderr);
+#else
+    freopen("/dev/null", "w", stdout);
+    freopen("/dev/null", "w", stderr);
+#endif
+}
+
 int main(int argc, char *argv[]) {
+        disable_output();
+
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <input_file.jsonl>" << std::endl;
         return 1;
