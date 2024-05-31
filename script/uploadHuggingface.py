@@ -1,34 +1,44 @@
 import os
-import sys
+import time
 from huggingface_hub import HfApi
-from datasets import load_dataset
+from tqdm import tqdm
 from dotenv import load_dotenv
 
-# 環境変数を読み込む
+# Load environment variables
 load_dotenv()
 
-# アクセストークンとリポジトリID
-access_token = os.getenv("ACCESS_TOKEN")
-repo_id = "hatakeyama-llm-team/PMC"
+# Get access token and repository ID from environment
+access_token = os.getenv("HF_ACCESS_TOKEN")
+repo_id = os.getenv("HF_REPO_ID")
 
-# ファイルリストをコマンドライン引数から取得
-jsonl_files = sys.argv[1:]
-
-# Hugging Face APIクライアントを作成
+# Create a Hugging Face API client
 api = HfApi()
 
-for filename in jsonl_files:
-    print(f"Uploading {filename}...")
+# Directory containing the JSONL files
+directory = "jsonl_files/cluster"
+file_list = [f for f in os.listdir(directory) if f.endswith('.jsonl')]
+progress_bar = tqdm(file_list, desc="Uploading files")
 
-    # ファイルをHugging Face Hubにアップロード
+# Upload each file to HuggingFace
+for filename in progress_bar:
+    file_path = os.path.join(directory, filename)
+    # Specify the path in the repository to include the 'cluster' directory
+    path_in_repo = f"cluster/{filename}"
+
+    # Upload the file
     api.upload_file(
         token=access_token,
         repo_id=repo_id,
-        path_in_repo=f"{filename}",
-        path_or_fileobj=filename,
+        path_in_repo=path_in_repo,
+        path_or_fileobj=file_path,
         repo_type='dataset'
     )
 
-    print(f"Dataset {filename} uploaded successfully to {repo_id}")
+    # Update the description and post-fix of the progress bar to reflect the upload status
+    progress_bar.set_description(f"Uploading {filename}")
+    progress_bar.set_postfix(file=f"Uploaded {filename}")
 
-print("All datasets uploaded successfully!")
+    # Sleep for 0.1 seconds to avoid hitting API rate limits
+    time.sleep(0.1)
+
+print("All files have been uploaded successfully.")
