@@ -11,15 +11,14 @@ from scipy.sparse import vstack
 # ロギングの設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# メモリをチェックして閾値を超えたら終了するようにする。そうしないとインスタンスごと落ちる。
 def check_memory_usage(threshold=95):
-    """メモリ使用率が指定の閾値を超えたら終了"""
     memory = psutil.virtual_memory()
     if memory.percent > threshold:
         logging.warning(f"Memory usage exceeded {threshold}%. Exiting...")
         sys.exit(1)
 
 def count_lines(file_path):
-    """指定されたファイルの行数をカウントする"""
     with open(file_path, 'r') as file:
         return sum(1 for _ in file)
 
@@ -30,14 +29,13 @@ os.makedirs(output_dir, exist_ok=True)
 total_lines = count_lines(input_file)
 logging.info(f"Total number of lines in the file: {total_lines}")
 
-# HashingVectorizerの設定
 vectorizer = HashingVectorizer(n_features=1024, alternate_sign=False, stop_words='english')
 
 n_clusters = 1024
 kmeans = MiniBatchKMeans(n_clusters=n_clusters, init='k-means++')
 
 def process_file(file_path, batch_size):
-    """ファイルをバッチ処理し、テキストデータを読み込んでクラスタリングする"""
+    # ファイルをバッチ処理し、テキストデータを読み込んでクラスタリングする
     batch_data = []
     with open(file_path, 'r') as file:
         for line in tqdm(file, total=total_lines, desc="Processing lines"):
@@ -63,7 +61,6 @@ def process_file(file_path, batch_size):
             yield cluster_id, original_text
         logging.info("Final batch processed successfully")
 
-# メイン処理
 batch_size = 1024 * 8
 logging.info("Starting clustering and saving...")
 for cluster_id, original_text in process_file(input_file, batch_size):

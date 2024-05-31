@@ -8,16 +8,13 @@ import psutil
 from dotenv import load_dotenv
 from huggingface_hub import HfApi
 
-# 環境変数を読み込む
 load_dotenv()
 
-# アクセストークンとリポジトリIDを環境変数から取得
 access_token = os.getenv("HF_ACCESS_TOKEN")
 repo_id = os.getenv("HF_REPO_ID")
 
-# グローバル変数
-MAX_COMPARE_LENGTH = 128
-SIMILARITY_THRESHOLD = 0.5  # 類似性の閾値
+MAX_COMPARE_LENGTH = 128 # 最初のn文字を比較する
+SIMILARITY_THRESHOLD = 0.5 # 類似性の閾値
 
 def similarity(s1, s2):
     if not s1 or not s2:
