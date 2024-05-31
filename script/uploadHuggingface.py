@@ -1,34 +1,36 @@
 import os
-import sys
+import time
 from huggingface_hub import HfApi
-from datasets import load_dataset
+from tqdm import tqdm
 from dotenv import load_dotenv
 
-# 環境変数を読み込む
 load_dotenv()
 
-# アクセストークンとリポジトリID
-access_token = os.getenv("ACCESS_TOKEN")
-repo_id = "hatakeyama-llm-team/PMC"
+access_token = os.getenv("HF_ACCESS_TOKEN")
+repo_id = os.getenv("HF_REPO_ID")
 
-# ファイルリストをコマンドライン引数から取得
-jsonl_files = sys.argv[1:]
-
-# Hugging Face APIクライアントを作成
 api = HfApi()
 
-for filename in jsonl_files:
-    print(f"Uploading {filename}...")
+directory = "jsonl_files/cluster" # clustering済みのやつをアップロードする場合
+file_list = [f for f in os.listdir(directory) if f.endswith('.jsonl')]
+progress_bar = tqdm(file_list, desc="Uploading files")
 
-    # ファイルをHugging Face Hubにアップロード
+for filename in progress_bar:
+    file_path = os.path.join(directory, filename)
+    path_in_repo = f"cluster/{filename}" # clustering済みのやつをアップロードする場合
+
     api.upload_file(
         token=access_token,
         repo_id=repo_id,
-        path_in_repo=f"{filename}",
-        path_or_fileobj=filename,
+        path_in_repo=path_in_repo,
+        path_or_fileobj=file_path,
         repo_type='dataset'
     )
 
-    print(f"Dataset {filename} uploaded successfully to {repo_id}")
+    progress_bar.set_description(f"Uploading {filename}")
+    progress_bar.set_postfix(file=f"Uploaded {filename}")
 
-print("All datasets uploaded successfully!")
+    # アップロードするファイルの件数が1時間あたり百数十件のような制限があったので、アップロードするファイル数と処理時間に応じてインターバルを挟む場合がある
+    # time.sleep(0.1)
+
+print("All files have been uploaded successfully.")
